@@ -1,0 +1,16 @@
+---
+# defaults file for ansible-register-runners
+
+timestamp: "{{ ansible_date_time.epoch }}"
+
+runner_services:
+  - project_name: "your-project-name"
+    instance_url: "https://gitlab.com/"
+    token: "PROJECT_CICD_RUNNER_TOKEN"
+    description: "project stage"
+    tag: "project-stage"
+    executor: "shell"
+
+runner_config:
+  concurrent: 2
+  check_interval: 5

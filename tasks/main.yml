@@ -1,0 +1,59 @@
+---
+# tasks file for ansible-register-runners
+
+- name: Get timestamp from the system
+  shell: "date +%s"
+  register: tstamp
+
+- name: Set variables
+  set_fact:
+    timestamp: "{{ tstamp.stdout }}"
+
+- name: Unregister All GitLab Runners
+  command: "gitlab-runner unregister --all-runners"
+
+- name: Register GitLab Runners
+  loop: "{{ runner_services }}"
+  loop_control:
+    loop_var: service
+  command: >
+    gitlab-runner register
+    --non-interactive
+    --url "{{ service.instance_url }}"
+    --registration-token "{{ service.token }}"
+    --description "{{ service.description }}-{{ timestamp }}"
+    --tag-list "{{ service.tag }}"
+    --executor "{{ service.executor }}"
+
+- name: Update concurrent and check_interval values in gitlab-runner config
+  ansible.builtin.lineinfile:
+    path: /etc/gitlab-runner/config.toml
+    regexp: "{{ item.regexp }}"
+    line: "{{ item.line }}"
+  loop:
+    - {
+        regexp: "^concurrent =",
+        line: "concurrent = {{ runner_config.concurrent }}",
+      }
+    - {
+        regexp: "^check_interval =",
+        line: "check_interval = {{ runner_config.check_interval }}",
+      }
+  tags:
+    - gitlab_runner_config
+
+- name: Restart GitLab Runner service
+  ansible.builtin.service:
+    name: gitlab-runner
+    state: restarted
+  tags:
+    - gitlab_runner_config
+
+- name: Execute gitlab-runner list command
+  shell:
+    cmd: "gitlab-runner list"
+  register: gitlab_runner_output
+
+- name: Display gitlab-runner output
+  debug:
+    msg: "{{ gitlab_runner_output.stderr_lines | map('regex_replace', '\\x1B\\[[0-9;]*[a-zA-Z]', '') | list }}"
